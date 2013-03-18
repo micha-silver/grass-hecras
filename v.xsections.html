@@ -1,0 +1,71 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>GRASS GIS manual: v.xsections.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<link rel="stylesheet" href="grassdocs.css" type="text/css">
+</head>
+<body bgcolor="white">
+
+<img src="grass_logo.png" alt="GRASS logo"><hr align=center size=6 noshade>
+
+<h2>NAME</h2>
+<em><b>v.xsections.py</b></em>  - Creates a river system schematic vector map and a cross sections vector map from a river network
+<h2>KEYWORDS</h2>
+vector, HEC RAS, cross sections
+<h2>SYNOPSIS</h2>
+<div id="name"><b>v.xsections.py</b><br></div>
+<b>v.xsections.py help</b><br>
+<div id="synopsis"><b>v.xsections.py</b> [-<b>s</b>] <b>input</b>=<em>string</em> <b>xsections</b>=<em>string</em> <b>stations</b>=<em>string</em> <b>spacing</b>=<em>integer</em> <b>width</b>=<em>integer</em> <b>intersects</b>=<em>string</em>  [<b>smooth_river</b>=<em>string</em>]  <b>layer</b>=<em>integer</em>  [<b>threshold</b>=<em>integer</em>]   [--<b>verbose</b>]  [--<b>quiet</b>] 
+</div>
+
+<div id="flags">
+<h3>Flags:</h3>
+<dl>
+<dt><b>-s</b></dt>
+<dd>Perform smoothing on input map with v.generalize (uses "snakes" algorithm)</dd>
+
+<dt><b>--verbose</b></dt>
+<dd>Verbose module output</dd>
+<dt><b>--quiet</b></dt>
+<dd>Quiet module output</dd>
+</dl>
+</div>
+
+<div id="parameters">
+<h3>Parameters:</h3>
+<dl>
+<dt><b>input</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of input (river) line vector</dd>
+
+<dt><b>xsections</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of output cross sections line vector</dd>
+
+<dt><b>stations</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of output river stations schematic point vector</dd>
+
+<dt><b>spacing</b>=<em>integer</em>&nbsp;<b>[required]</b></dt>
+<dd>spacing between cross sections</dd>
+<dd>Default: <em>100</em></dd>
+
+<dt><b>width</b>=<em>integer</em>&nbsp;<b>[required]</b></dt>
+<dd>Width of each cross section</dd>
+<dd>Default: <em>200</em></dd>
+
+<dt><b>intersects</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of output point vector for cross section intersections</dd>
+
+<dt><b>smooth_river</b>=<em>string</em></dt>
+<dd>The smoothed output vector name (only when -s flag is used)</dd>
+
+<dt><b>layer</b>=<em>integer</em>&nbsp;<b>[required]</b></dt>
+<dd>The layer in smoothed output vector</dd>
+<dd>Default: <em>1</em></dd>
+
+<dt><b>threshold</b>=<em>integer</em></dt>
+<dd>The threshold for the smoothed vector name (only when -s flag is used)</dd>
+
+</dl>
+</div>
+</body>
+</html>
