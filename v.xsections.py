@@ -122,11 +122,18 @@ def create_stations_schematic(invect, outvect, spacing, cats):
 	
 	grass.run_command('v.segment',input=invect, output=outvect, file=tmp_stations, overwrite=True, quiet=True)
 	os.unlink(tmp_stations)
+
 	# Add coordinates to each station
 	grass.run_command('v.db.addtable', map=outvect, quiet=True)
 	grass.run_command('v.db.addcolumn', map=outvect, columns="x DOUBLE PRECISION, y DOUBLE PRECISION", quiet=True)
 	grass.run_command('v.to.db', map=outvect, option="coor", columns="x,y", quiet=True)
-
+	
+	# Also get the reach id for each station
+	# The point ids are created from line (reach) cats + three more digits.
+	# Dividing point id by 1000 returns original line id
+	grass.run_command('v.db.addcolumn', map=outvect, columns="reach_id INTEGER", quiet=True)
+	grass.run_command('v.to.db', map=outvect, option="query", columns="reach_id", query="cat/1000", quiet=True)
+	
 	return station_cnt
 
 

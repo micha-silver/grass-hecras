@@ -14,9 +14,9 @@
 #############################################################################
 
 #%module
-#% description: Creates a HEC RAS formatted ascii text file
-#% of a river system and cross sections from GRASS vector maps 
+#% description: Creates a HEC RAS formatted ascii text file of a river system and cross sections from GRASS vector maps 
 #% keywords: vector
+#% keywords: elevation profile
 #% keywords: HEC RAS
 #% keywords: cross sections
 #%end
@@ -33,13 +33,19 @@
 #% required: yes
 #%end
 #%option
+#% key: elevation
+#% type: string
+#% description: Name of input elevation raster for making cross section profiles
+#% required: yes
+#%end
+#%option
 #% key: stations
 #% type: string
 #% description: Name of input river stations point vector (from v.xsections output)
 #% required: yes
 #%end
 #%option
-#% key: sdf
+#% key: output
 #% type: string
 #% description: Name of output HEC RAS geometry file
 #% required: yes
@@ -48,29 +54,101 @@
 import sys
 import os
 import math
+import datetime
 import grass.script as grass
 
 def cleanup():
 	grass.message("Finished")
 
-def output_start_end_points(invect, outfile):
+def output_headers(river, xsections, outfile):
 	""" 
+	Prepare the output sdf file, and add header section
 	"""
+	# Start header section
+	ver=grass.read_command('g.version')
+	dt=str(datetime.date.today())
+
+	outfile.write("# RAS geometry file create on: "+dt+"\n")
+	outfile.write("# exported from GRASS GIS version: "+ver+"\n\n")
+	outfile.write("BEGIN HEADER:\n")
+	proj=grass.read_command('g.proj',flags="g")
+	d=grass.parse_key_val(proj)
+	if d['units'] == "metres":
+		units="METRIC"
+	elif d['units'] == "feet":
+		units="US CUSTOMARY"
+	else:
+		units=""
+
+	outfile.write(" UNITS: "+ units + "\n")
+	outfile.write(" DTM TYPE: GRID\n")
+	outfile.write(" STREAM LAYER: "+ river +"\n")
+	info = grass.read_command('v.info', map=river, flags="t")
+	d = grass.parse_key_val(info)
+	num_reaches=d['lines']
+	outfile.write(" NUMBER OF REACHES: "+ num_reaches +"\n")
+	
+
+	outfile.write(" CROSS-SECTION LAYER: "+ xsections +"\n")
+	info = grass.read_command('v.info', map=xsections, flags="t")
+	d=grass.parse_key_val(info)
+	num_xsects=d['lines']
+	outfile.write(" NUMBER OF CROSS-SECTIONS: "+ num_xsects +"\n")
+
+	info = grass.read_command('v.info', map=river, flags="g")
+	d=grass.parse_key_val(info)
+	xmin=d['west']
+	xmax=d['east']
+	ymin=d['south']
+	ymax=d['north']
+	outfile.write(" BEGIN SPATIALEXTENT: \n")
+	outfile.write("   Xmin: "+ xmin +"\n")
+	outfile.write("   Xmax: "+ xmax +"\n")
+	outfile.write("   Ymin: "+ ymin +"\n")
+	outfile.write("   Ymax: "+ ymax +"\n")	
+	outfile.write(" END SPATIALEXTENT: \n")
+
+	outfile.write("END HEADER:\n\n")
+
+def output_centerline(river, stations, outfile):
+	""" 
+	Output the river network, including centerline for each reach
+	and coordinates for all stations along each reach
+	"""
+	# Begin with the list of reach cats
+	reach_cats=grass.read_command('v.category', input=river, option="print").strip().split("\n")
+
+	outfile.write("BEGIN STREAM NETWORK:\n")
+	# Now get pairs of endpoints from the river vector, one pair for each reach
+	for i in range(len(reach_cats)):
+		where_cond="reach_id="+str(reach_cats[i])
+		select=grass.read_command('v.db.select',map=stations, separator=" ", where=where_cond, flags="c")
+		s=select.strip().split("\n")
+		first,last = 0,len(s)-1
+		pt=s[first].split()
+		pi,x,y=pt[0],pt[1],pt[2]
+		outfile.write(" ENDPOINT: "+x+","+y+", ,"+pi+"\n")
+		pt=s[last].split()
+		pi,x,y=pt[0],pt[1],pt[2]
+		outfile.write(" ENDPOINT: "+x+","+y+", ,"+pi+"\n")
+
+	outfile.write("END STREAM NETWORK:\n\n")
 
 
-def output_centerline(invect, outfile):
+def output_xsections(xsects, outfile):
 	""" 
 	"""
+	outfile.write("BEGIN CROSS-SECTIONS:\n")
 
-def output_xsections(invect, outfile):
-	""" 
-	"""
+	outfile.write("END CROSS-SECTIONS:\n\n")
+
 
 def main():
-	river = options['input']
+	river = options['river']
 	stations = options['stations']
 	xsections = options['xsections']
-	sdf = options['sdf']
+	elev = options['elevation']
+	output = options['output']
 	
 	# do input maps exist in CURRENT mapset?
 	mapset = grass.gisenv()['MAPSET']
@@ -80,13 +158,22 @@ def main():
 		grass.fatal(_("Vector map <%s> not found in current mapset") % stations)
 	if not grass.find_file(xsections, element = 'vector', mapset = mapset)['file']:
 		grass.fatal(_("Vector map <%s> not found in current mapset") % xsections)
+	if not grass.find_file(elev, element = 'raster', mapset = mapset)['file']:
+		grass.fatal(_("Raster map <%s> not found in current mapset") % elev)
 
 	# The work starts here
-	output_headers(sdf)	
-	output_start_end_points(river, sdf)
-	output_centerline(stations, sdf)
-	output_xsections(xsections, sdf)
+	if ".sdf" == output.lower()[-4]:
+		sdf=output
+	else:
+		sdf=output+".sdf"
 
+	sdf_file=open(sdf, 'w')
+
+	output_headers(river, xsections, sdf_file)	
+	output_centerline(river, stations, sdf_file)
+	output_xsections(xsections, sdf_file)
+
+	sdf_file.close()
 	cleanup()
 	return 0
 
