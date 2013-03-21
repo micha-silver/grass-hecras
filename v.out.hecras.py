@@ -89,18 +89,9 @@ def output_headers(river, xsections, outfile):
 	outfile.write(" UNITS: "+ units + "\n")
 	outfile.write(" DTM TYPE: GRID\n")
 	outfile.write(" STREAM LAYER: "+ river +"\n")
-	info = grass.read_command('v.info', map=river, flags="t")
-	d = grass.parse_key_val(info)
-	num_reaches=d['lines']
-	outfile.write(" NUMBER OF REACHES: "+ num_reaches +"\n")
-	
-
 	outfile.write(" CROSS-SECTION LAYER: "+ xsections +"\n")
-	info = grass.read_command('v.info', map=xsections, flags="t")
-	d=grass.parse_key_val(info)
-	num_xsects=d['lines']
-	outfile.write(" NUMBER OF CROSS-SECTIONS: "+ num_xsects +"\n")
-
+	
+	# write out the extents
 	info = grass.read_command('v.info', map=river, flags="g")
 	d=grass.parse_key_val(info)
 	xmin=d['west']
@@ -114,31 +105,44 @@ def output_headers(river, xsections, outfile):
 	outfile.write("   Ymax: "+ ymax +"\n")	
 	outfile.write(" END SPATIALEXTENT: \n")
 
+	# write out how many reaches and cross sections
+	info = grass.read_command('v.info', map=river, flags="t")
+	d = grass.parse_key_val(info)
+	num_reaches=d['lines']
+	outfile.write(" NUMBER OF REACHES: "+ num_reaches +"\n")
+	
+
+	info = grass.read_command('v.info', map=xsections, flags="t")
+	d=grass.parse_key_val(info)
+	num_xsects=d['lines']
+	outfile.write(" NUMBER OF CROSS-SECTIONS: "+ num_xsects +"\n")
+
 	outfile.write("END HEADER:\n\n")
+
 
 def output_centerline(river, stations, outfile):
 	""" 
 	Output the river network, including centerline for each reach
 	and coordinates for all stations along each reach
 	"""
+
 	# Begin with the list of reach cats
-	reach_cats=grass.read_command('v.category', input=river, option="print").strip().split("\n")
-
+	rc=grass.read_command('v.category', input=river, type="line", option="print")
+	reach_cats=rc.strip().split("\n")
+	
 	outfile.write("BEGIN STREAM NETWORK:\n")
-	# Now get pairs of endpoints from the river vector, one pair for each reach
+	# Now get points from the river vector, one pair for each reach
 	for i in range(len(reach_cats)):
-		where_cond="reach_id="+str(reach_cats[i])
-		select=grass.read_command('v.db.select',map=stations, separator=" ", where=where_cond, flags="c")
-		s=select.strip().split("\n")
-		# For endpoints, get only the first and last point for each reach
-		first,last = 0,len(s)-1
-		pt=s[first].split()
-		pi,x,y=pt[0],pt[1],pt[2]
-		outfile.write(" ENDPOINT: "+x+","+y+", ,"+pi+"\n")
-		pt=s[last].split()
-		pi,x,y=pt[0],pt[1],pt[2]
-		outfile.write(" ENDPOINT: "+x+","+y+", ,"+pi+"\n")
-
+		where_cond="cat="+str(reach_cats[i])
+		riv=grass.read_command('v.db.select',map=river, separator=" ", 
+				columns="cat,start_x,end_x,start_y,end_y", where=where_cond, flags="c")
+		r_pts=riv.strip().split(" ")
+		pi,x1,y1,x2,y2 = r_pts[0],r_pts[1],r_pts[2],r_pts[3],r_pts[4]
+		# Give the start point a point id of "cat"1, and the endpoint a n id of "cat"2
+		pi1 = pi+"1"
+		pi2 = pi+"2"
+		outfile.write(" ENDPOINT: "+x1+","+y1+", ,"+pi1+"\n")
+		outfile.write(" ENDPOINT: "+x2+","+y2+", ,"+pi2+"\n")
 
 	# Loop thru the reach_cats again, and output a REACH: section for each reach, 
 	# with all points for that reach
@@ -148,20 +152,33 @@ def output_centerline(river, stations, outfile):
 		reach_id=str(reach_cats[i])
 		outfile.write("   REACH ID: %s\n" % reach_id)
 		# Get the FROM POINT and TO POINT ids just like above
-		reach_cond="reach_id="+reach_id
-		reach_select = grass.read_command('v.db.select',map=stations, separator=" ", where=reach_cond, flags="c")
-		rs = reach_select.strip().split("\n")
-		first,last = 0,len(rs)-1
-		pi_start=rs[first].split()[0]
-		pi_end=rs[last].split()[0]
-		outfile.write("   FROM POINT: %s\n" % pi_start)
-		outfile.write("   TO POINT: %s\n" % pi_end)
+		where_cond="cat="+str(reach_cats[i])
+		riv=grass.read_command('v.db.select',map=river, separator=" ", 
+				columns="cat,start_x,end_x,start_y,end_y", where=where_cond, flags="c")
+		r_pts=riv.strip().split(" ")
+		pi,x1,y1,x2,y2 = r_pts[0],r_pts[1],r_pts[2],r_pts[3],r_pts[4]
+		# Give the start point a point id of "cat"1, and the endpoint a n id of "cat"2
+		pi1 = pi+"1"
+		pi2 = pi+"2"
+		outfile.write("   FROM POINT: %s\n" % pi1)
+		outfile.write("   TO POINT: %s\n" % pi2)
+
 		# Now the actual points along centerline
-		# loop thru the stations point vector, selected above to get each station's x,y and id
 		outfile.write("   CENTERLINE:\n")
-		for p in range(len(rs)):
-			id,x,y=rs[p].split()[0], rs[p].split()[1], rs[p].split()[2]
-			outfile.write("     %s,%s,NULL,%s\n" % (x,y,id))
+		# loop thru the stations point vector to get each station's x,y and id
+		reach_cond="reach_id="+reach_cats[i]
+		p=grass.pipe_command('v.db.select', map=stations, where=reach_cond, quiet=True, flags="c")
+		st_list=[]
+		for line in p.stdout:
+			st=line.strip().split('|')
+			s,x,y = st[0], st[1], st[2]
+			st_list.append([s,x,y])
+
+		p.stdout.close()
+		p.wait()
+		# Now write out all station points to the CENTERLINE section
+		for i in range(len(st_list)):
+			outfile.write("    "+st_list[i][1]+","+st_list[i][2]+", ,"+st_list[i][0]+"\n")
 
 		outfile.write(" END:\n")
 
@@ -267,7 +284,7 @@ def output_xsections(xsects, outfile, elev, res, river):
 
 	# remove temp points file
 	tmps=xsect_pts,xsect_pts2
-	grass.run_command('g.mremove', vect=tmps, flags="f")
+	grass.run_command('g.mremove', vect=tmps, quiet=True, flags="f")
 
 
 def main():
