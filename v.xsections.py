@@ -132,12 +132,12 @@ def create_stations_schematic(invect, outvect, spacing, cats):
 	# The point ids are created from line (reach) cats + three more digits.
 	# Dividing point id by 1000 returns original line id
 	grass.run_command('v.db.addcolumn', map=outvect, columns="reach_id INTEGER", quiet=True)
-	grass.run_command('v.to.db', map=outvect, option="query", columns="reach_id", query="cat/1000", quiet=True)
+	grass.run_command('v.to.db', map=outvect, option="query", columns="reach_id", qcolumn="cat/1000", quiet=True)
 	
 	return station_cnt
 
 
-def create_cross_sections(invect, outvect, spacing, width, cats):
+def create_cross_sections(invect, outvect, stations, spacing, width, cats):
 	""" 
 	Loop thru all river reaches, and for each reach 
 	begin at the start of each reach, and create a series of point pairs, at each "spacing" interval
@@ -161,8 +161,10 @@ def create_cross_sections(invect, outvect, spacing, width, cats):
 		station=0
 		while station <= l:
 			stat=str(math.floor(station))
-			# write two points with same cat, at right and left of river line
+			# write tthree points with same cat, at right and left of river line
+			# and one point one the line
 			tmp.write("P "+str(pi)+" "+c+" "+stat+ " " + str(-half_width)+"\n")
+			tmp.write("P "+str(pi)+" "+c+" "+stat+ " " + "0"+"\n")
 			tmp.write("P "+str(pi)+" "+c+" "+stat+ " " + str(half_width)+"\n")
 			station += spacing
 			pi +=1
@@ -196,23 +198,33 @@ def create_cross_sections(invect, outvect, spacing, width, cats):
 		# both points have the same cat
 	
 	for i in range(len(coord_list)):
-		p1, p2 = coord_list[i][0], coord_list[i][1]
+		p1, p2, p3 = coord_list[i][0], coord_list[i][1], coord_list[i][2]
 		x1, y1 = p1.split(',')[0], p1.split(',')[1]
 		x2, y2 = p2.split(',')[0], p2.split(',')[1]
+		x3, y3 = p3.split(',')[0], p3.split(',')[1]
 		cat = p1.split(',')[2]
 		# Write out a standard format ASCII file of line segments
 		# each segment with exactly two nodes
-		tmp.write("L 2 1\n")
+		tmp.write("L 3 1\n")
 		tmp.write(" "+x1+" "+y1+"\n")
 		tmp.write(" "+x2+" "+y2+"\n")
+		tmp.write(" "+x3+" "+y3+"\n")
 		tmp.write(" 1 "+cat+"\n")
 		xsect_cnt += 1
 
 	tmp.close()
 	grass.run_command('v.in.ascii',input=tmp_xsects, output=outvect, format="standard", 
 				quiet=True, overwrite=True, flags='n')
+	# Use v.distance to upload values from the stations point vector to the new cross sections line vector
+	tmp_lines_map="tmp_lines_"+str(proc)
+	grass.run_command('v.db.addtable', map=outvect, columns="reach INTEGER, station_id INTEGER", quiet=True)
+	vdist_params='from='+stations+', to='+outvect+', output='+tmp_lines_map
+	grass.run_command('v.distance', _from=outvect, to=stations, 
+				upload="cat,to_attr", to_column="reach_id", column="station_id,reach", quiet=True) 
+
 	os.unlink(tmp_pairs)
 	grass.run_command('g.remove',vect=tmp_pairs_map, flags="f")
+	grass.run_command('g.remove',vect=tmp_lines_map, flags="f")
 
 	return xsect_cnt
 
@@ -306,7 +318,7 @@ def main():
 	# Call functions to create new vectors
 	station_count = create_stations_schematic(smooth_river, stations, spacing, reach_cats)
 	grass.message("Created %d stations" % station_count)
-	xsection_count = create_cross_sections(smooth_river, xsections, spacing, width, reach_cats)
+	xsection_count = create_cross_sections(smooth_river, xsections, stations, spacing, width, reach_cats)
 	grass.message("Created %d cross sections" % xsection_count)
 	intersect_cnt=create_xsection_intersects(xsections, intersects)
 	grass.message("Found %d intersection points" % intersect_cnt)

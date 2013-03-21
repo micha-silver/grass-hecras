@@ -33,21 +33,27 @@
 #% required: yes
 #%end
 #%option
-#% key: elevation
-#% type: string
-#% description: Name of input elevation raster for making cross section profiles
-#% required: yes
-#%end
-#%option
 #% key: stations
 #% type: string
 #% description: Name of input river stations point vector (from v.xsections output)
 #% required: yes
 #%end
 #%option
+#% key: elevation
+#% type: string
+#% description: Name of input elevation raster for making cross section profiles
+#% required: yes
+#%end
+#%option
+#% key: resolution
+#% type: integer
+#% description: Resolution along the cross sections for getting elevation points (if not given, the elevation raster resolution will be used)
+#% required: no
+#%end
+#%option
 #% key: output
 #% type: string
-#% description: Name of output HEC RAS geometry file
+#% description: Name of output HEC RAS geometry file (without .sdf extension)
 #% required: yes
 #%end
 
@@ -124,6 +130,7 @@ def output_centerline(river, stations, outfile):
 		where_cond="reach_id="+str(reach_cats[i])
 		select=grass.read_command('v.db.select',map=stations, separator=" ", where=where_cond, flags="c")
 		s=select.strip().split("\n")
+		# For endpoints, get only the first and last point for each reach
 		first,last = 0,len(s)-1
 		pt=s[first].split()
 		pi,x,y=pt[0],pt[1],pt[2]
@@ -132,15 +139,135 @@ def output_centerline(river, stations, outfile):
 		pi,x,y=pt[0],pt[1],pt[2]
 		outfile.write(" ENDPOINT: "+x+","+y+", ,"+pi+"\n")
 
+
+	# Loop thru the reach_cats again, and output a REACH: section for each reach, 
+	# with all points for that reach
+	for i in range(len(reach_cats)):
+		outfile.write(" REACH:\n")
+		outfile.write("   STREAM ID: %s\n" % river)
+		reach_id=str(reach_cats[i])
+		outfile.write("   REACH ID: %s\n" % reach_id)
+		# Get the FROM POINT and TO POINT ids just like above
+		reach_cond="reach_id="+reach_id
+		reach_select = grass.read_command('v.db.select',map=stations, separator=" ", where=reach_cond, flags="c")
+		rs = reach_select.strip().split("\n")
+		first,last = 0,len(rs)-1
+		pi_start=rs[first].split()[0]
+		pi_end=rs[last].split()[0]
+		outfile.write("   FROM POINT: %s\n" % pi_start)
+		outfile.write("   TO POINT: %s\n" % pi_end)
+		# Now the actual points along centerline
+		# loop thru the stations point vector, selected above to get each station's x,y and id
+		outfile.write("   CENTERLINE:\n")
+		for p in range(len(rs)):
+			id,x,y=rs[p].split()[0], rs[p].split()[1], rs[p].split()[2]
+			outfile.write("     %s,%s,NULL,%s\n" % (x,y,id))
+
+		outfile.write(" END:\n")
+
+	# Close STREAM NETWORK section
 	outfile.write("END STREAM NETWORK:\n\n")
 
-
-def output_xsections(xsects, outfile):
-	""" 
+def output_xsections(xsects, outfile, elev, res, river):
 	"""
+	Create the cross section profiles by first making a points vector from the cross sections
+	loop thru the section_ids and use v.out.ascii to get the points for each cross section.
+	Feed these points into r.profile to get lists of the coords and elevation at each spot along the xsection,
+	and output these to the CROSS-SECTION paragraph
+	"""
+
+	# Prepare tmp vector maps to hold the points from the cross sections
+	proc=os.getpid()
+	xsect_pts="tmp_xsect_pts_"+str(proc)
+	xsect_pts2="tmp_xsect_pts2_"+str(proc)
+	grass.run_command('v.to.points', input=xsects, output=xsect_pts, flags="v", quiet=True)
+	# and double check region settings
+	grass.run_command('g.region', vect=xsects, quiet=True)
+	
+	# v.to.points returns all points on the same cross section with the same cat value
+	# Dump the points with v.out.ascii and pipe directly back into v.in.ascii 
+	# to get a new points file with unique cat for each point, 
+	# but careful to keep the columns "reach" and "station"
+	p1=grass.pipe_command('v.out.ascii', input=xsect_pts, type="point", 
+			columns="reach,station_id", dp=0, separator=",")
+	p2=grass.start_command('v.in.ascii', input="-", stdin=p1.stdout, output=xsect_pts2, separator=",",
+			columns="x INTEGER, y INTEGER, oldcat INTEGER, reach INTEGER, station_id INTEGER", quiet=True)
+	p1.stdout.close()
+	p1.wait()
+	p2.wait()
+	if (p1.returncode != 0) or (p2.returncode != 0):
+		sys.exit(1)
+	
+	grass.run_command('v.db.dropcolumn', map=xsect_pts2, column="oldcat")
+
+	# Now we can begin writing out CROSS-SECTIONS to file
+	outfile.write("\n")
 	outfile.write("BEGIN CROSS-SECTIONS:\n")
+	
+	# Get the list of station ids with the reaches
+	st=grass.pipe_command('v.db.select', map=xsect_pts2, columns="reach,station_id", flags="c", quiet=True)
+	station_ids=[]
+	for line in st.stdout:	
+		station = line.rstrip('\n').split("|")
+		r,s = station[0], station[1]
+		station_ids.append([r,s])
+
+	st.stdout.close()
+	st.wait()
+	
+	# Now loop thru those stations to create the CUTLINE and SURFACE section
+	for i in range(len(station_ids)):
+		station_id = station_ids[i][1].strip('\n')
+		reach = station_ids[i][0].rstrip('\n')
+		process_msg="Processing reach: "+reach+" at station id: "+station_id
+		#grass.message(process_msg)
+		outfile.write(" CROSS-SECTION:\n")
+		outfile.write("   STREAM ID: %s\n" % river)
+		outfile.write("   REACH ID: %s\n" % reach)
+		outfile.write("   STATION: %s\n" % station_id)
+			
+		# get point coords from this reach/station and print out CUTLINE: section
+		# Save this output also for next SURFACE: section
+		station_cond="station_id="+station_id
+		p=grass.pipe_command('v.out.ascii', input=xsect_pts2, columns="reach,station_id", 
+			where=station_cond ,separator=",", layer=1, quiet=True)
+		station_pts=[]
+		for line in p.stdout:
+			st = line.rstrip('\n').split(',')
+			station_pts.append(st)
+
+		p.stdout.close()
+		p.wait()
+
+		outfile.write("   CUTLINE:\n")
+		for j in range(len(station_pts)):
+			x,y = station_pts[j][0], station_pts[j][1]
+			outfile.write("     "+x+","+y+"\n")  
+
+		# Now run the points thru r.profile, and get the elevations
+		# and print elevations to SURFACE LINE: section
+		outfile.write("   SURFACE LINE:\n")
+		profile_pts=[]
+		for k in range(len(station_pts)):
+			x,y = station_pts[k][0], station_pts[k][1]
+			profile_pts.append([x,y])
+			
+		pp=grass.pipe_command('r.profile', input=elev, profile=profile_pts, res=res, flags="g", quiet=True)
+		for line in pp.stdout:
+			l=line.rstrip('\n').split(" ")
+			# The r.profile output has x,y in first two columns and elev in 4th column
+			outfile.write("     "+l[0]+","+l[1]+","+l[3]+"\n")
+		pp.stdout.close()
+		pp.wait()
+		
+		# CLose this CROSS-SECTION paragraph
+		outfile.write(" END:\n\n")
 
 	outfile.write("END CROSS-SECTIONS:\n\n")
+
+	# remove temp points file
+	tmps=xsect_pts,xsect_pts2
+	grass.run_command('g.mremove', vect=tmps, flags="f")
 
 
 def main():
@@ -149,6 +276,7 @@ def main():
 	xsections = options['xsections']
 	elev = options['elevation']
 	output = options['output']
+	res = options['resolution']
 	
 	# do input maps exist in CURRENT mapset?
 	mapset = grass.gisenv()['MAPSET']
@@ -160,18 +288,29 @@ def main():
 		grass.fatal(_("Vector map <%s> not found in current mapset") % xsections)
 	if not grass.find_file(elev, element = 'raster', mapset = mapset)['file']:
 		grass.fatal(_("Raster map <%s> not found in current mapset") % elev)
+	if not res:
+		# No resolution given, use the resolution of the elevation raster
+		info = grass.read_command('r.info', map=elev, flags="g")
+		d=grass.parse_key_val(info)
+		res=d['ewres']  # Assume ewres=nsres
+	# Be sure region is set to river layer
+	grass.run_command('g.region', vect=river, quiet=True)
 
-	# The work starts here
+	# Prepare output file
 	if ".sdf" == output.lower()[-4]:
 		sdf=output
 	else:
 		sdf=output+".sdf"
-
+	
 	sdf_file=open(sdf, 'w')
 
+	# The work starts here
 	output_headers(river, xsections, sdf_file)	
+	grass.message("Headers written to %s" % sdf)
 	output_centerline(river, stations, sdf_file)
-	output_xsections(xsections, sdf_file)
+	grass.message("River network written to %s" % sdf)
+	output_xsections(xsections, sdf_file, elev, res, river)
+	grass.message("Cross sections written to %s" % sdf)
 
 	sdf_file.close()
 	cleanup()
