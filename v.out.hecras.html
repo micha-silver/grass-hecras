@@ -1,0 +1,49 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>GRASS GIS manual: v.out.hecras.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<link rel="stylesheet" href="grassdocs.css" type="text/css">
+</head>
+<body bgcolor="white">
+
+<img src="grass_logo.png" alt="GRASS logo"><hr align=center size=6 noshade>
+
+<h2>NAME</h2>
+<em><b>v.out.hecras.py</b></em>  - Creates a HEC RAS formatted ascii text file of a river system and cross sections from GRASS vector maps
+<h2>KEYWORDS</h2>
+vector, elevation profile, HEC RAS, cross sections
+<h2>SYNOPSIS</h2>
+<div id="name"><b>v.out.hecras.py</b><br></div>
+<b>v.out.hecras.py help</b><br>
+<div id="synopsis"><b>v.out.hecras.py</b> <b>river</b>=<em>string</em> <b>xsections</b>=<em>string</em> <b>stations</b>=<em>string</em> <b>elevation</b>=<em>string</em>  [<b>resolution</b>=<em>integer</em>]  <b>output</b>=<em>string</em>  [--<b>verbose</b>]  [--<b>quiet</b>] 
+</div>
+
+<div id="flags">
+</div>
+
+<div id="parameters">
+<h3>Parameters:</h3>
+<dl>
+<dt><b>river</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of input of river schematic line vector (from v.xsections output)</dd>
+
+<dt><b>xsections</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of input cross sections line vector (from v.xsections output)</dd>
+
+<dt><b>stations</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of input river stations point vector (from v.xsections output)</dd>
+
+<dt><b>elevation</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of input elevation raster for making cross section profiles</dd>
+
+<dt><b>resolution</b>=<em>integer</em></dt>
+<dd>Resolution along the cross sections for getting elevation points (if not given, the elevation raster resolution will be used)</dd>
+
+<dt><b>output</b>=<em>string</em>&nbsp;<b>[required]</b></dt>
+<dd>Name of output HEC RAS geometry file (without .sdf extension)</dd>
+
+</dl>
+</div>
+</body>
+</html>
