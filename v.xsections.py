@@ -2,15 +2,15 @@
 #
 ############################################################################
 #
-# MODULE:       v.xsections
+# MODULE:	   v.xsections
 # AUTHOR(S):   	Micha Silver 
 #				micha@arava.co.il  Arava Drainage Authority	
-# PURPOSE:      Creates a river system schematic vector map and a cross sections vector map 
+# PURPOSE:	  Creates a river system schematic vector map and a cross sections vector map 
 #				from an input river network
 # COPYRIGHT: 	This program is free software under the GNU General Public
-#               License (>=v2). Read the file COPYING that comes with GRASS
-#               for details.
-#
+#			   License (>=v2). Read the file COPYING that comes with GRASS
+#			   for details.
+# REVISIONS:	March 2015, compatible with GRASS 7.0
 #############################################################################
 
 #%module
@@ -91,7 +91,7 @@ def cleanup():
 def create_stations_schematic(invect, outvect, spacing, cats):
 	""" 
 	Loop thru all river reaches, and for each reach
-	begin at the upstream start of the reach, 
+	begin at the downstream end of the reach, 
 	and create a series of points at each "spacing" interval. 
 	Put these points into an ASCII file, formatted for v.segment
 	and run v.segment to create a line vector of stations along the original river
@@ -101,26 +101,29 @@ def create_stations_schematic(invect, outvect, spacing, cats):
 	tmp = open(tmp_stations,'w')
 	# Keep track of how many total river stations were marked
 	station_cnt=0
+	# cats is a dict with cat as key and reach length as value
 	for c in cats:
 		reach_len=float(cats[c])
-		# Begins at the upstream start of each river reach, and work downstream
-		# Each iteration creates a line segment "spacing" meters downstream of the previous
+		# Begins at the downstream of each river reach, and work upstream
+		# Each iteration creates a line segment "spacing" meters upstream of the previous
 		# Use the same line id for each segment in the reach
-		station=0
+		# The first station is postioned spacing/2 from the downstream end of the read
+		station=reach_len-(spacing/2)
 		pt=0
-		# Loop until the remaining length < reach_len - spacing
-		while station<=reach_len:
+		# Loop until the remaining length < spacing/2
+		while station>=spacing/2:
 			# concatenate (as strings) a point iterator with the line cat value to create a point cat 
 			pt+=1
 			pt_id=c + "%03d" % pt
 			st1=str(math.floor(station))
 			tmp.write("P "+pt_id+" "+c+" "+st1+"\n")
-			station += spacing
+			grass.message("Adding point: %s at position:%s" % (pt_id, st1))
+			station -= spacing
 			station_cnt+=1
-	
+
 	tmp.close()
 	
-	grass.run_command('v.segment',input=invect, output=outvect, file=tmp_stations, overwrite=True, quiet=True)
+	grass.run_command('v.segment',input=invect, output=outvect, rules=tmp_stations, overwrite=True, quiet=True)
 	os.unlink(tmp_stations)
 
 	# Add coordinates to each station
@@ -140,7 +143,7 @@ def create_stations_schematic(invect, outvect, spacing, cats):
 def create_cross_sections(invect, outvect, stations, spacing, width, cats):
 	""" 
 	Loop thru all river reaches, and for each reach 
-	begin at the start of each reach, and create a series of point pairs, at each "spacing" interval
+	begin at the end of each reach, and create a series of point pairs, at each "spacing" interval
 	and at "width/2" offset from the original river. 
 	Put these point pairs into a standard format ASCII vector line file,
 	then run v.in.ascii to create cross section line segments from each pair
@@ -158,31 +161,34 @@ def create_cross_sections(invect, outvect, stations, spacing, width, cats):
 	pi = 1
 	for c in cats:
 		l=float(cats[c])
-		station=0
-		while station <= l:
+		# Begin at 1/2 spacing from the beginning of the reach
+		station=l-(spacing/2)
+		# Stop at 1/2 spacing before the start of the reach
+		while station >= spacing/2:
 			stat=str(math.floor(station))
 			# write tthree points with same cat, at right and left of river line
 			# and one point one the line
 			tmp.write("P "+str(pi)+" "+c+" "+stat+ " " + str(-half_width)+"\n")
 			tmp.write("P "+str(pi)+" "+c+" "+stat+ " " + "0"+"\n")
 			tmp.write("P "+str(pi)+" "+c+" "+stat+ " " + str(half_width)+"\n")
-			station += spacing
+			station -= spacing
 			pi +=1
 
 	tmp.close()
-	grass.run_command('v.segment',input=invect, output=tmp_pairs_map, file=tmp_pairs, overwrite=True, quiet=True)
+	grass.run_command('v.segment',input=invect, output=tmp_pairs_map, rules=tmp_pairs, overwrite=True, quiet=True)
 	
 	# Now dump the point pairs - selected by cats - into a new ASCII format file to create the lines
 	# First add a DB connection
 	grass.run_command('v.db.addtable', map=tmp_pairs_map, quiet=True)
 	# Now get a list of the cats from the tmp_pairs 
+	# Use -c flag to prevent printing of the "cat" column name
 	xsect_cats=[] 
-	cats=grass.read_command('v.db.select', map=tmp_pairs_map, columns="cat", quiet=True)
+	cats=grass.read_command('v.db.select', map=tmp_pairs_map, columns="cat", quiet=True, flags="c")
 	for c in cats.split():
 		xsect_cats.append(c)
 	#print xsect_cats
 	
-	# Loop thru the cats and extract X-Y for each pair of points, 
+	# Loop thru the cats and extract X-Y for each triple of points, 
 	# and put into a standard format ascii file as Line segments
 	coord_list=[]
 	tmp_xsects=grass.tempfile()
@@ -219,12 +225,12 @@ def create_cross_sections(invect, outvect, stations, spacing, width, cats):
 	tmp_lines_map="tmp_lines_"+str(proc)
 	grass.run_command('v.db.addtable', map=outvect, columns="reach INTEGER, station_id INTEGER", quiet=True)
 	vdist_params='from='+stations+', to='+outvect+', output='+tmp_lines_map
-	grass.run_command('v.distance', _from=outvect, to=stations, 
+	grass.run_command('v.distance', from_=outvect, to=stations, 
 				upload="cat,to_attr", to_column="reach_id", column="station_id,reach", quiet=True) 
 
 	os.unlink(tmp_pairs)
-	grass.run_command('g.remove',vect=tmp_pairs_map, flags="f")
-	grass.run_command('g.remove',vect=tmp_lines_map, flags="f")
+	grass.run_command('g.remove',type='vect', name=tmp_pairs_map, flags="f")
+	grass.run_command('g.remove',type='vect', name=tmp_lines_map, flags="f")
 
 	return xsect_cnt
 
@@ -239,7 +245,7 @@ def create_xsection_intersects(invect, outvect):
 	grass.run_command('v.clean', input=invect, output=dummy, error=outvect, tool="break", quiet=True, overwrite=True)
 	info = grass.read_command('v.info', map=outvect, flags="t")
 	d=grass.parse_key_val(info)
-	grass.run_command('g.remove',vect=dummy, flags="f")
+	grass.run_command('g.remove',type='vect', name=dummy, flags="f")
 	
 	return int(d['points'])
 
@@ -258,10 +264,7 @@ def create_river_network(invect, outvect):
 	if (flags['s']):
 		# Perform smoothing of the input vector	
 		grass.run_command('v.generalize', input=invect, output=outvect, _method='snakes',
-			 threshold=thresh, overwrite=True, quiet=True)
-	else:
-		 grass.run_command('g.copy', vect='%s,%s' % (invect,outvect))
-		 
+			threshold=thresh, overwrite=True, quiet=True)
 	
 	# Add a reach length column to the river vector
 	# First check if column exists
@@ -273,10 +276,14 @@ def create_river_network(invect, outvect):
 		grass.run_command('v.db.addcolumn', map=outvect, columns="start_x DOUBLE PRECISION", quiet=True)
 	if not "start_y" in columns_exist:
 		grass.run_command('v.db.addcolumn', map=outvect, columns="start_y DOUBLE PRECISION", quiet=True)
+	if not "start_elev" in columns_exist:
+		grass.run_command('v.db.addcolumn', map=outvect, columns="start_elev DOUBLE PRECISION", quiet=True)
 	if not "end_x" in columns_exist:
 		grass.run_command('v.db.addcolumn', map=outvect, columns="end_x DOUBLE PRECISION", quiet=True)
 	if not "end_y" in columns_exist:
 		grass.run_command('v.db.addcolumn', map=outvect, columns="end_y DOUBLE PRECISION", quiet=True)
+	if not "end_elev" in columns_exist:
+		grass.run_command('v.db.addcolumn', map=outvect, columns="end_elev DOUBLE PRECISION", quiet=True)
 	# Now update those columns
 	grass.run_command('v.to.db',map=outvect, option="length", columns="reach_len", quiet=True)
 	grass.run_command('v.to.db',map=outvect, option="start", columns="start_x,start_y",quiet=True)
@@ -289,7 +296,6 @@ def create_river_network(invect, outvect):
 	reach_cats=grass.parse_key_val(d, val_type=float)
 
 	return reach_cats
-
 	
 
 
@@ -312,7 +318,11 @@ def main():
 	if (flags['s']):
 		if not smooth_river or not thresh:
 			grass.fatal( "Missing smooth options. Check smooth_river and threshold" )
-
+	elif not smooth_river:
+		smooth_river = river+"_out"
+		grass.message("Creating output river vector: %s" % smooth_river)
+		grass.run_command('g.copy', vect='%s,%s' % (river,smooth_river), overwrite=True)
+		
 	# The work starts here
 	reach_cats = create_river_network(river, smooth_river)
 	# Call functions to create new vectors
@@ -321,7 +331,9 @@ def main():
 	xsection_count = create_cross_sections(smooth_river, xsections, stations, spacing, width, reach_cats)
 	grass.message("Created %d cross sections" % xsection_count)
 	intersect_cnt=create_xsection_intersects(xsections, intersects)
-	grass.message("Found %d intersection points" % intersect_cnt)
+	if (intersect_cnt>0):
+		grass.message("  *** Found %d intersection points ***" % intersect_cnt, flag="w")
+		grass.message("  *** Correct these cross sections before continuing  ***", flag="w")
 
 	cleanup()
 	return 0

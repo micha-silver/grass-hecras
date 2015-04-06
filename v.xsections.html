@@ -6,17 +6,19 @@
 <link rel="stylesheet" href="grassdocs.css" type="text/css">
 </head>
 <body bgcolor="white">
+<div id="container">
 
-<img src="grass_logo.png" alt="GRASS logo"><hr align=center size=6 noshade>
+<a href="index.html"><img src="grass_logo.png" alt="GRASS logo"></a>
+<hr class="header">
 
 <h2>NAME</h2>
 <em><b>v.xsections.py</b></em>  - Creates a river system schematic vector map and a cross sections vector map from a river network
 <h2>KEYWORDS</h2>
-vector, HEC RAS, cross sections
+<a href="vector.html">vector</a>, <a href="topic_HEC_RAS.html">HEC RAS</a>, <a href="keywords.html#cross sections">cross sections</a>
 <h2>SYNOPSIS</h2>
 <div id="name"><b>v.xsections.py</b><br></div>
-<b>v.xsections.py help</b><br>
-<div id="synopsis"><b>v.xsections.py</b> [-<b>s</b>] <b>input</b>=<em>string</em> <b>xsections</b>=<em>string</em> <b>stations</b>=<em>string</em> <b>spacing</b>=<em>integer</em> <b>width</b>=<em>integer</em> <b>intersects</b>=<em>string</em>  [<b>smooth_river</b>=<em>string</em>]  <b>layer</b>=<em>integer</em>  [<b>threshold</b>=<em>integer</em>]   [--<b>verbose</b>]  [--<b>quiet</b>] 
+<b>v.xsections.py --help</b><br>
+<div id="synopsis"><b>v.xsections.py</b> [-<b>s</b>] <b>input</b>=<em>string</em> <b>xsections</b>=<em>string</em> <b>stations</b>=<em>string</em> <b>spacing</b>=<em>integer</em> <b>width</b>=<em>integer</em> <b>intersects</b>=<em>string</em>  [<b>smooth_river</b>=<em>string</em>]  <b>layer</b>=<em>integer</em>  [<b>threshold</b>=<em>integer</em>]   [--<b>help</b>]  [--<b>verbose</b>]  [--<b>quiet</b>]  [--<b>ui</b>] 
 </div>
 
 <div id="flags">
@@ -25,10 +27,14 @@ vector, HEC RAS, cross sections
 <dt><b>-s</b></dt>
 <dd>Perform smoothing on input map with v.generalize (uses "snakes" algorithm)</dd>
 
+<dt><b>--help</b></dt>
+<dd>Print usage summary</dd>
 <dt><b>--verbose</b></dt>
 <dd>Verbose module output</dd>
 <dt><b>--quiet</b></dt>
 <dd>Quiet module output</dd>
+<dt><b>--ui</b></dt>
+<dd>Force launching GUI dialog</dd>
 </dl>
 </div>
 

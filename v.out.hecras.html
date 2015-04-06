@@ -6,20 +6,36 @@
 <link rel="stylesheet" href="grassdocs.css" type="text/css">
 </head>
 <body bgcolor="white">
+<div id="container">
 
-<img src="grass_logo.png" alt="GRASS logo"><hr align=center size=6 noshade>
+<a href="index.html"><img src="grass_logo.png" alt="GRASS logo"></a>
+<hr class="header">
 
 <h2>NAME</h2>
 <em><b>v.out.hecras.py</b></em>  - Creates a HEC RAS formatted ascii text file of a river system and cross sections from GRASS vector maps
 <h2>KEYWORDS</h2>
-vector, elevation profile, HEC RAS, cross sections
+<a href="vector.html">vector</a>, <a href="topic_elevation_profile.html">elevation profile</a>, <a href="keywords.html#HEC RAS">HEC RAS</a>, <a href="keywords.html#cross sections">cross sections</a>
 <h2>SYNOPSIS</h2>
 <div id="name"><b>v.out.hecras.py</b><br></div>
-<b>v.out.hecras.py help</b><br>
-<div id="synopsis"><b>v.out.hecras.py</b> <b>river</b>=<em>string</em> <b>xsections</b>=<em>string</em> <b>stations</b>=<em>string</em> <b>elevation</b>=<em>string</em>  [<b>resolution</b>=<em>integer</em>]  <b>output</b>=<em>string</em>  [--<b>verbose</b>]  [--<b>quiet</b>] 
+<b>v.out.hecras.py --help</b><br>
+<div id="synopsis"><b>v.out.hecras.py</b> [-<b>u</b>] <b>river</b>=<em>string</em> <b>xsections</b>=<em>string</em> <b>stations</b>=<em>string</em> <b>elevation</b>=<em>string</em>  [<b>resolution</b>=<em>integer</em>]  <b>output</b>=<em>string</em>  [--<b>help</b>]  [--<b>verbose</b>]  [--<b>quiet</b>]  [--<b>ui</b>] 
 </div>
 
 <div id="flags">
+<h3>Flags:</h3>
+<dl>
+<dt><b>-u</b></dt>
+<dd>Add Posix line separator to output (default is windows CR-LF)</dd>
+
+<dt><b>--help</b></dt>
+<dd>Print usage summary</dd>
+<dt><b>--verbose</b></dt>
+<dd>Verbose module output</dd>
+<dt><b>--quiet</b></dt>
+<dd>Quiet module output</dd>
+<dt><b>--ui</b></dt>
+<dd>Force launching GUI dialog</dd>
+</dl>
 </div>
 
 <div id="parameters">
