@@ -17,7 +17,7 @@
 #############################################################################
 
 #%module
-#% description: Read a sdf formatted ascii text file, output from a HEC-RAS analysis and create a polygon vecotr of water surface extent 
+#% description: Read a sdf formatted ascii text file, output from a HEC-RAS analysis and create a polygon vector of water surface extent 
 #% keywords: HEC-RAS
 #% keywords: water surface
 #%end
@@ -54,18 +54,18 @@ def read_sdf(input):
 		lines = sdf.readlines()
 		sdf.close()
 		
-	for i in range(len(lines)):
-		if 'WATER SURFACE EXTENT' in lines[i]:
-		# Found an surface extent line, the next line has the coord pairs
-			coords = lines[i+1].strip().replace(" ", "").split(",")
-			lpair = [coords[0], coords[1]]
-			rpair = [coords[2], coords[3]]
-			left_pairs.append(lpair)
-			right_pairs.append(rpair)
-		
-	return left_pairs, right_pairs
+        for i in range(len(lines)):
+            if 'WATER SURFACE EXTENT' in lines[i]:
+	    # Found a surface extent line, the next line has the coord pairs
+	        coords = lines[i+1].strip().replace(" ", "").split(",")
+	        lpair = [coords[0], coords[1]]
+                rpair = [coords[2], coords[3]]
+	        left_pairs.append(lpair)
+	        right_pairs.append(rpair)	
+        	
+        return left_pairs, right_pairs
 
-def create_grass_vector(left_pairs, right_pairs, out_vect):
+def create_water_surface(left_pairs, right_pairs, out_vect):
 	"""
 	Use the two lists of coordinate pairs to create a text file for import into v.in.ascii
 	The left coords first, then the right coords starting from the end, 
@@ -85,16 +85,16 @@ def create_grass_vector(left_pairs, right_pairs, out_vect):
 	with open(tmp_coords,'w') as tmp:
 	# Write coords in the standard ASCII file format for a grass boundary
 	# Loop thru the left coord pairs, then in reverse thru the right pairs
-	# Finally add the first point of the left pairs again to close the boundary
-		tmp.write("VERTI:\n")
-		tmp.write("B %s\n" % ttl_pts)
-		for i in range(len(left_pairs)):
-			tmp.write(" "+left_pairs[i][0]+" "+left_pairs[i][1]+"\n")
+	    tmp.write("VERTI:\n")
+	    tmp.write("B %s\n" % ttl_pts)
+	    for i in range(len(left_pairs)):
+	        tmp.write(" "+left_pairs[i][0]+" "+left_pairs[i][1]+"\n")
 			
-		for j in range(len(right_pairs)-1, -1, -1):
-			tmp.write(" "+right_pairs[j][0]+" "+right_pairs[j][1]+"\n")
-		
-		tmp.write(" "+left_pairs[0][0]+" "+left_pairs[0][1]+"\n")
+	    for j in range(len(right_pairs)-1, -1, -1):
+		tmp.write(" "+right_pairs[j][0]+" "+right_pairs[j][1]+"\n")
+	
+        # Finally add the first point of the left pairs again to close the boundary
+            tmp.write(" "+left_pairs[0][0]+" "+left_pairs[0][1]+"\n")
 	
 	tmp.close()
 	
@@ -107,16 +107,19 @@ def create_grass_vector(left_pairs, right_pairs, out_vect):
 	grass.run_command('g.remove',type='vect', name=tmp_vect, flags="f")
 	os.unlink(tmp_coords)	
 
+
 def main():
 	in_sdf = options['input']
 	out_vect = options['output']
+
 	if not os.path.isfile(in_sdf):
 		grass.fatal(_("Input sdf: %s not found") % in_sdf)
 		sys.exit(0)
-		
-	left_pairs, right_pairs = read_sdf(in_sdf)
-	create_grass_vector(left_pairs, right_pairs, out_vect)
-	cleanup()
+
+        left_pairs, right_pairs = read_sdf(in_sdf)
+        create_water_surface(left_pairs, right_pairs, out_vect)
+
+        cleanup()
 	
 if __name__ == "__main__":
 	options, flags = grass.parser()
